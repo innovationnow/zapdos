@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎥 AI Video Search Agent</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #121212;
+      color: #f8f9fa;
+    }
+    .card {
+      background-color: #1e1e1e;
+      border: 1px solid #343a40;
+    }
+    .card-title, .form-label, .alert, .btn, .lead {
+      color: #f8f9fa !important;
+    }
+    .text-muted {
+      color: #bbbbbb !important;
+    }
+    .btn-warning {
+      font-weight: 600;
+      color: #000 !important;
+    }
+    .progress-bar {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0px #ffc107; }
+      50% { box-shadow: 0 0 10px #ffc107; }
+      100% { box-shadow: 0 0 0px #ffc107; }
+    }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-black px-4 mb-4">
+  <span class="navbar-brand mb-0 h1">
+    <img src="https://img.icons8.com/ios-filled/50/ffffff/camera.png" alt="logo" width="24" class="me-2">
+    <strong>Team Zapdos AI</strong>
+  </span>
+</nav>
+<div class="container py-5">
+  <div class="text-center mb-5">
+    <h1 class="fw-bold display-5">Search Your Video <span class="text-warning">Like Google</span></h1>
+    <p class="lead text-muted">Upload your video, then search it using natural language.</p>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">🎥 Upload Video</h5>
+      <form id="upload-form" enctype="multipart/form-data">
+        <div class="mb-3">
+          <input class="form-control" type="file" id="video" name="video" accept="video/*" required>
+        </div>
+        <button class="btn btn-warning w-100" type="submit">⬆ Upload Your Video</button>
+      </form>
+      <div id="upload-status" class="mt-3 text-success" style="display: none;">✅ Video uploaded successfully!</div>
+      <div class="progress mt-2" style="height: 20px; display: none;" id="progress-bar-container">
+        <div class="progress-bar progress-bar-striped progress-bar-animated" id="progress-bar" style="width: 0%">Processing...</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="video-status-section" style="display: none;">
+    <div class="alert alert-dark border border-warning">⚠️ A video is already uploaded. You can replace it by uploading a new one.</div>
+    <video id="uploaded-video" class="w-100 mb-3" controls></video>
+
+    <div id="label-box" class="alert alert-dark border border-warning" style="display: none;">
+      <strong>Detected Labels:</strong> <span id="detected-labels"></span>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">🔍 Search in Video</h5>
+        <form id="search-form">
+          <div class="input-group shadow">
+            <input type="text" id="search-query" class="form-control form-control-lg" placeholder="Search your video using natural language..." />
+            <button class="btn btn-warning btn-lg" type="submit">Search</button>
+          </div>
+        </form>
+        <div id="search-results" class="mt-3"></div>
+      </div>
+    </div>
+
+    <div class="text-center mt-4">
+      <button id="stitch-button" class="btn btn-success" style="display: none;">🎞️ Stitch Clips & Add Music</button>
+    </div>
+
+    <div id="stitched-result" class="mt-3 text-center"></div>
+  </div>
+
+  <div id="no-video-message" class="alert alert-warning" style="display: none;">
+    🚫 No video uploaded yet. Please upload one above to get started.
+  </div>
+</div>
+
+<script>
+const uploadForm = document.getElementById('upload-form');
+const uploadStatus = document.getElementById('upload-status');
+const progressBar = document.getElementById('progress-bar');
+const progressContainer = document.getElementById('progress-bar-container');
+const videoSection = document.getElementById('video-status-section');
+const noVideoMessage = document.getElementById('no-video-message');
+const videoPlayer = document.getElementById('uploaded-video');
+const searchForm = document.getElementById('search-form');
+const searchResults = document.getElementById('search-results');
+const labelBox = document.getElementById('label-box');
+const labelSpan = document.getElementById('detected-labels');
+
+async function checkVideoStatus() {
+  const response = await fetch('/video-status');
+  const data = await response.json();
+  if (data.videoExists) {
+    videoSection.style.display = 'block';
+    noVideoMessage.style.display = 'none';
+    videoPlayer.src = `/video`;
+
+    const labelRes = await fetch('/uploaded_videos/detected_labels.txt');
+    if (labelRes.ok) {
+      const text = await labelRes.text();
+      labelSpan.innerText = text.replace(/\n/g, ', ').trim();
+      labelBox.style.display = 'block';
+    }
+  } else {
+    videoSection.style.display = 'none';
+    noVideoMessage.style.display = 'block';
+  }
+}
+
+uploadForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(uploadForm);
+  progressContainer.style.display = 'block';
+  progressBar.style.width = '0%';
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/upload', true);
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) {
+      let percent = (e.loaded / e.total) * 100;
+      progressBar.style.width = percent + '%';
+    }
+  };
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      uploadStatus.style.display = 'block';
+      checkVideoStatus();
+    }
+  };
+  xhr.send(formData);
+});
+
+searchForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const query = document.getElementById('search-query').value;
+  const response = await fetch(`/search?q=${encodeURIComponent(query)}`);
+  const results = await response.json();
+  searchResults.innerHTML = '';
+
+  if (results.results && results.results.length > 0) {
+    results.results.forEach((r, index) => {
+      const clipUrl = r.clip;
+      const start = r.start.toFixed(2);
+      const end = r.end.toFixed(2);
+      const duration = (r.end - r.start).toFixed(1);
+
+      searchResults.innerHTML += `
+        <div class="card my-3 bg-dark border-light text-light">
+          <div class="card-body">
+            <h6 class="card-title">🎬 Clip ${index + 1} – ${r.label} from ${start}s to ${end}s</h6>
+            <video src="${clipUrl}" class="w-100" controls></video>
+            <p class="mt-2"><small>⏱ Duration: ${duration} seconds</small></p>
+            <a href="${clipUrl}" class="btn btn-sm btn-outline-warning" download>⬇ Download Clip</a>
+          </div>
+        </div>`;
+    });
+    document.getElementById("stitch-button").style.display = "inline-block";
+    document.getElementById("stitch-button").setAttribute("data-query", query);
+  } else {
+    searchResults.innerHTML = '<div class="text-danger">No matching results found.</div>';
+  }
+});
+
+document.getElementById("stitch-button").addEventListener("click", async () => {
+  const query = document.getElementById("stitch-button").getAttribute("data-query");
+  const response = await fetch(`/stitch?q=${encodeURIComponent(query)}`);
+  const result = await response.json();
+
+  if (result.final_video) {
+    document.getElementById("stitched-result").innerHTML = `
+      <h5 class="mt-4">🎧 Final Compilation</h5>
+      <video src="${result.final_video}" class="w-100" controls></video>
+      <a href="${result.final_video}" class="btn btn-outline-warning mt-2" download>⬇ Download Final Video</a>
+    `;
+  } else {
+    document.getElementById("stitched-result").innerHTML = `<div class="text-danger">Something went wrong stitching the video.</div>`;
+  }
+});
+
+checkVideoStatus();
+</script>
+</body>
+</html>
